@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, minimum-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#1B4332">
+  <title>Amazônia: Ecos do Vazio</title>
+
+  <!-- A-Frame -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+
+  <!-- Componentes (só os essenciais) -->
+  <script src="gaze-cursor.js"></script>
+  <script src="totem.js"></script>
+  <script src="portal.js"></script>
+  <script src="great-tree.js"></script>
+  <script src="cuca.js"></script>
+  <script src="walk-controls.js"></script>
+
+  <style>
+    body { margin: 0; background: #000; overflow: hidden; font-family: serif; }
+    #loader {
+      position: fixed; inset: 0;
+      background: radial-gradient(ellipse at center, #1B4332 0%, #000 100%);
+      color: #A8E6CF; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 10000; transition: opacity 0.8s;
+      padding: 20px; text-align: center;
+    }
+    #loader h1 { font-size: 2.2em; margin: 0; letter-spacing: 0.1em; }
+    #loader p { font-style: italic; opacity: 0.7; margin-top: 1em; }
+    #start-btn {
+      margin-top: 2em; padding: 1.3em 2em; background: #1B4332;
+      border: 2px solid #A8E6CF; color: #A8E6CF; font-size: 1.1em;
+      cursor: pointer; letter-spacing: 0.1em;
+      -webkit-tap-highlight-color: rgba(168,230,207,0.4);
+      min-width: 85%;
+    }
+    #start-btn:active { background: #A8E6CF; color: #1B4332; }
+    #my-vr-btn {
+      position: fixed; top: 12px; right: 12px;
+      width: 64px; height: 64px;
+      background: #1B4332; border: 3px solid #A8E6CF;
+      color: #A8E6CF; font-size: 22px; font-weight: bold;
+      border-radius: 50%; cursor: pointer; z-index: 9998;
+      display: none; align-items: center; justify-content: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    #my-vr-btn:active { background: #A8E6CF; color: #1B4332; }
+  </style>
+</head>
+<body>
+
+  <div id="loader">
+    <h1>AMAZÔNIA</h1>
+    <p>Ecos do Vazio</p>
+    <button id="start-btn">ENTRAR NO MUNDO DAS LENDAS</button>
+    <p style="font-size:0.85em; margin-top:2em; opacity:0.5;">
+      No celular: toque no botão VR depois de entrar.<br>
+      No PC: arraste o mouse para olhar; espaço/clique = totem.
+    </p>
+  </div>
+
+  <button id="my-vr-btn" title="Entrar em modo VR">VR</button>
+
+  <a-scene
+    id="main-scene"
+    fog="type: linear; color: #6B9A6B; near: 25; far: 70"
+    renderer="antialias: true; colorManagement: true"
+    vr-mode-ui="enabled: true; cardboardModeEnabled: true">
+
+    <a-sky color="#87A878"></a-sky>
+    <a-circle radius="40" rotation="-90 0 0" color="#3D6B3F" material="shader: flat"></a-circle>
+
+    <!-- Iluminação clara -->
+    <a-light type="ambient" color="#FFFFFF" intensity="1.2"></a-light>
+    <a-light type="directional" color="#FFF8DC" intensity="1.0" position="5 10 5"></a-light>
+    <a-light type="hemisphere" color="#FFFFFF" groundColor="#3D6B3F" intensity="0.6"></a-light>
+
+    <!-- Árvore central -->
+    <a-entity great-tree position="0 0 0"></a-entity>
+
+    <!-- CUCA -->
+    <a-entity cuca position="-3 0 -2" rotation="0 30 0" scale="0.95 0.95 0.95"></a-entity>
+
+    <!-- 5 PORTAIS -->
+    <a-entity portal="destination: mata-viva; color: #52A256; label: Mata Viva"
+              position="8 2.5 0" rotation="0 -90 0"></a-entity>
+    <a-entity portal="destination: rio-esquecido; color: #1E88E5; label: Rio Esquecido; locked: true"
+              position="2.5 2.5 7.6" rotation="0 -160 0"></a-entity>
+    <a-entity portal="destination: floresta-cinzas; color: #E53935; label: Floresta em Cinzas; locked: true"
+              position="-6.5 2.5 4.7" rotation="0 -215 0"></a-entity>
+    <a-entity portal="destination: floresta-quebrada; color: #7E57C2; label: Floresta Quebrada; locked: true"
+              position="-6.5 2.5 -4.7" rotation="0 -305 0"></a-entity>
+    <a-entity portal="destination: vazio; color: #1A001F; label: O Vazio; locked: true"
+              position="2.5 2.5 -7.6" rotation="0 -20 0"></a-entity>
+
+    <!-- Árvores menores ao redor (geradas no script abaixo) -->
+    <a-entity id="forest-ring"></a-entity>
+
+    <!-- JOGADOR -->
+    <a-entity id="rig" position="0 1.6 5" walk-controls="speed: 2; tiltAngle: 25">
+      <a-camera look-controls="touchEnabled: true" wasd-controls-enabled="false">
+        <a-entity gaze-cursor></a-entity>
+        <a-entity totem position="0.32 -0.32 -0.6" rotation="-15 -10 0"></a-entity>
+      </a-camera>
+    </a-entity>
+  </a-scene>
+
+  <script>
+    function startGame(e) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      var loader = document.getElementById('loader');
+      var vrBtn = document.getElementById('my-vr-btn');
+      loader.style.opacity = '0';
+      setTimeout(function () {
+        loader.style.display = 'none';
+        vrBtn.style.display = 'flex';
+      }, 800);
+    }
+    function enterVR() {
+      var scene = document.getElementById('main-scene');
+      if (!scene) return;
+      try {
+        scene.enterVR().catch(function (err) { alert('Modo VR não disponível: ' + err.message); });
+      } catch (err) { alert('Erro: ' + err.message); }
+    }
+    document.getElementById('start-btn').addEventListener('click', startGame);
+    document.getElementById('start-btn').addEventListener('touchend', startGame);
+    document.getElementById('my-vr-btn').addEventListener('click', enterVR);
+    document.getElementById('my-vr-btn').addEventListener('touchend', function(e){ e.preventDefault(); enterVR(); });
+
+    // Anel de árvores menores (gerado por JS)
+    window.addEventListener('load', function () {
+      var ring = document.getElementById('forest-ring');
+      if (!ring) return;
+      for (var i = 0; i < 30; i++) {
+        var a = (i/30) * Math.PI * 2;
+        var r = 15 + Math.random()*6;
+        var x = Math.cos(a)*r;
+        var z = Math.sin(a)*r;
+        var h = 4 + Math.random()*3;
+        var t = document.createElement('a-cylinder');
+        t.setAttribute('radius', 0.3); t.setAttribute('height', h); t.setAttribute('segments-radial', 5);
+        t.setAttribute('position', x + ' ' + (h/2) + ' ' + z); t.setAttribute('color', '#3E2723');
+        ring.appendChild(t);
+        var top = document.createElement('a-sphere');
+        top.setAttribute('radius', 1.6); top.setAttribute('segments-width', 6); top.setAttribute('segments-height', 4);
+        top.setAttribute('position', x + ' ' + (h + 0.8) + ' ' + z);
+        var sh = ['#1F4020','#2E5D31','#3F7042','#264C28'];
+        top.setAttribute('color', sh[i%4]);
+        top.setAttribute('material', 'flatShading: true');
+        ring.appendChild(top);
+      }
+    });
+  </script>
+</body>
+</html>
