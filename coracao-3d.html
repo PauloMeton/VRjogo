@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coração 3D — Mensagem secreta</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: #0a0014;
+    color: white;
+  }
+  #canvas-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+  canvas { display: block; }
+  .ui {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 10;
+    pointer-events: none;
+  }
+  .title {
+    font-size: 14px;
+    color: rgba(255,255,255,0.6);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: rgba(255,255,255,0.4);
+  }
+  .counter {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 10;
+    pointer-events: none;
+  }
+  .count-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .count-bar {
+    width: 220px;
+    height: 4px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 0 auto;
+  }
+  .count-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff6b9d, #ff4170, #ff1744);
+    width: 0%;
+    transition: width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 0 20px #ff4170;
+  }
+  .count-num {
+    font-size: 13px;
+    color: rgba(255,255,255,0.7);
+    margin-top: 8px;
+  }
+  .message {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.5);
+    text-align: center;
+    z-index: 20;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+    padding: 20px;
+    max-width: 90%;
+  }
+  .message.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  .message-text {
+    font-size: 32px;
+    font-weight: 300;
+    line-height: 1.5;
+    background: linear-gradient(135deg, #ff6b9d 0%, #ff4170 50%, #ff1744 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: 0 0 60px rgba(255, 65, 112, 0.3);
+    margin-bottom: 20px;
+  }
+  .restart-btn {
+    margin-top: 24px;
+    padding: 12px 28px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+    border-radius: 30px;
+    font-size: 13px;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    transition: all 0.3s;
+    pointer-events: auto;
+    backdrop-filter: blur(10px);
+  }
+  .restart-btn:hover {
+    background: rgba(255,255,255,0.15);
+    transform: scale(1.05);
+  }
+  .hint {
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.1em;
+    z-index: 10;
+    pointer-events: none;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.8; }
+  }
+</style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div class="ui">
+    <div class="title">💗 Clique no coração</div>
+    <div class="subtitle">para revelar a mensagem</div>
+  </div>
+
+  <div class="hint" id="hint">toque toque toque</div>
+
+  <div class="counter">
+    <div class="count-label">Amor acumulado</div>
+    <div class="count-bar"><div class="count-fill" id="count-fill"></div></div>
+    <div class="count-num" id="count-num">0 / 15</div>
+  </div>
+
+  <div class="message" id="message">
+    <div class="message-text" id="message-text"></div>
+    <button class="restart-btn" id="restart-btn">↻ Recomeçar</button>
+  </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function() {
+  const TARGET = 15;
+  const MESSAGE = 'Não vou te ver amanhã viado,<br>I love you 💗';
+  let clicks = 0;
+
+  // Scene setup
+  const container = document.getElementById('canvas-container');
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x0a0014, 0.05);
+
+  const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 0, 8);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0x0a0014, 1);
+  container.appendChild(renderer.domElement);
+
+  // Lighting
+  const ambient = new THREE.AmbientLight(0x442266, 0.5);
+  scene.add(ambient);
+
+  const keyLight = new THREE.PointLight(0xff4170, 2, 20);
+  keyLight.position.set(3, 3, 4);
+  scene.add(keyLight);
+
+  const fillLight = new THREE.PointLight(0xff6b9d, 1.5, 20);
+  fillLight.position.set(-3, -2, 4);
+  scene.add(fillLight);
+
+  const rimLight = new THREE.PointLight(0xffffff, 0.8, 15);
+  rimLight.position.set(0, 0, -5);
+  scene.add(rimLight);
+
+  // Heart shape using parametric formula
+  function createHeartGeometry() {
+    const shape = new THREE.Shape();
+    const x = 0, y = 0;
+    shape.moveTo(x + 0.5, y + 0.5);
+    shape.bezierCurveTo(x + 0.5, y + 0.5, x + 0.4, y, x, y);
+    shape.bezierCurveTo(x - 0.6, y, x - 0.6, y + 0.7, x - 0.6, y + 0.7);
+    shape.bezierCurveTo(x - 0.6, y + 1.1, x - 0.3, y + 1.54, x + 0.5, y + 1.9);
+    shape.bezierCurveTo(x + 1.2, y + 1.54, x + 1.6, y + 1.1, x + 1.6, y + 0.7);
+    shape.bezierCurveTo(x + 1.6, y + 0.7, x + 1.6, y, x + 1.0, y);
+    shape.bezierCurveTo(x + 0.7, y, x + 0.5, y + 0.5, x + 0.5, y + 0.5);
+
+    const extrudeSettings = {
+      depth: 0.6,
+      bevelEnabled: true,
+      bevelSegments: 8,
+      steps: 2,
+      bevelSize: 0.15,
+      bevelThickness: 0.15
+    };
+
+    const geom = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+    geom.center();
+    geom.scale(1.4, -1.4, 1.4);
+    return geom;
+  }
+
+  const heartMaterial = new THREE.MeshPhongMaterial({
+    color: 0xff4170,
+    emissive: 0x661133,
+    emissiveIntensity: 0.3,
+    shininess: 100,
+    specular: 0xffffff
+  });
+
+  const heart = new THREE.Mesh(createHeartGeometry(), heartMaterial);
+  scene.add(heart);
+
+  // Glow shell
+  const glowMaterial = new THREE.MeshBasicMaterial({
+    color: 0xff4170,
+    transparent: true,
+    opacity: 0.15,
+    side: THREE.BackSide
+  });
+  const glow = new THREE.Mesh(createHeartGeometry(), glowMaterial);
+  glow.scale.set(1.15, 1.15, 1.15);
+  scene.add(glow);
+
+  // Background stars
+  const starGeo = new THREE.BufferGeometry();
+  const starCount = 400;
+  const starPos = new Float32Array(starCount * 3);
+  const starColors = new Float32Array(starCount * 3);
+  for (let i = 0; i < starCount; i++) {
+    starPos[i*3] = (Math.random() - 0.5) * 40;
+    starPos[i*3+1] = (Math.random() - 0.5) * 40;
+    starPos[i*3+2] = (Math.random() - 0.5) * 30 - 5;
+    const c = Math.random();
+    starColors[i*3] = 1;
+    starColors[i*3+1] = 0.4 + c * 0.6;
+    starColors[i*3+2] = 0.6 + c * 0.4;
+  }
+  starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+  starGeo.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+  const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({
+    size: 0.08,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.8
+  }));
+  scene.add(stars);
+
+  // Particle system for clicks
+  const particles = [];
+  function spawnParticles() {
+    const count = 20;
+    const geo = new THREE.BufferGeometry();
+    const positions = new Float32Array(count * 3);
+    const velocities = [];
+    const colors = new Float32Array(count * 3);
+
+    for (let i = 0; i < count; i++) {
+      positions[i*3] = (Math.random() - 0.5) * 0.5;
+      positions[i*3+1] = (Math.random() - 0.5) * 0.5;
+      positions[i*3+2] = (Math.random() - 0.5) * 0.5;
+      velocities.push({
+        x: (Math.random() - 0.5) * 0.15,
+        y: Math.random() * 0.15 + 0.05,
+        z: (Math.random() - 0.5) * 0.15
+      });
+      colors[i*3] = 1;
+      colors[i*3+1] = 0.3 + Math.random() * 0.5;
+      colors[i*3+2] = 0.5 + Math.random() * 0.3;
+    }
+
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const mat = new THREE.PointsMaterial({
+      size: 0.15,
+      vertexColors: true,
+      transparent: true,
+      opacity: 1
+    });
+    const points = new THREE.Points(geo, mat);
+    scene.add(points);
+    particles.push({ mesh: points, velocities, life: 1, geo, mat });
+  }
+
+  // Floating mini hearts
+  const miniHearts = [];
+  function spawnMiniHeart() {
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xff6b9d,
+      transparent: true,
+      opacity: 0.8
+    });
+    const geo = createHeartGeometry();
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.scale.setScalar(0.15);
+    mesh.position.set(
+      (Math.random() - 0.5) * 1,
+      (Math.random() - 0.5) * 1,
+      0
+    );
+    scene.add(mesh);
+    miniHearts.push({
+      mesh,
+      vx: (Math.random() - 0.5) * 0.04,
+      vy: 0.04 + Math.random() * 0.03,
+      rot: (Math.random() - 0.5) * 0.1,
+      life: 1
+    });
+  }
+
+  // Interaction
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+  let pulseScale = 1;
+  let targetScale = 1;
+
+  function handleClick(e) {
+    const x = e.touches ? e.touches[0].clientX : e.clientX;
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    mouse.x = (x / window.innerWidth) * 2 - 1;
+    mouse.y = -(y / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObject(heart);
+    if (hits.length > 0 && clicks < TARGET) {
+      onHeartClick();
+    }
+  }
+
+  function onHeartClick() {
+    clicks++;
+    targetScale = 1.3;
+    spawnParticles();
+    for (let i = 0; i < 3; i++) spawnMiniHeart();
+
+    const pct = (clicks / TARGET) * 100;
+    document.getElementById('count-fill').style.width = pct + '%';
+    document.getElementById('count-num').textContent = `${clicks} / ${TARGET}`;
+
+    // Heart color grows more vivid
+    const t = clicks / TARGET;
+    heartMaterial.emissiveIntensity = 0.3 + t * 0.5;
+    heartMaterial.color.setHSL(0.95 + t * 0.02, 0.9, 0.5 + t * 0.1);
+
+    if (clicks === 1) {
+      document.getElementById('hint').style.display = 'none';
+    }
+
+    if (clicks >= TARGET) {
+      revealMessage();
+    }
+  }
+
+  function revealMessage() {
+    const msg = document.getElementById('message');
+    document.getElementById('message-text').innerHTML = MESSAGE;
+    setTimeout(() => msg.classList.add('show'), 600);
+    // Big finale burst
+    for (let i = 0; i < 8; i++) {
+      setTimeout(() => {
+        spawnParticles();
+        spawnMiniHeart();
+      }, i * 100);
+    }
+  }
+
+  renderer.domElement.addEventListener('click', handleClick);
+  renderer.domElement.addEventListener('touchstart', e => {
+    handleClick(e);
+    e.preventDefault();
+  }, { passive: false });
+
+  // Restart
+  document.getElementById('restart-btn').addEventListener('click', () => {
+    clicks = 0;
+    document.getElementById('count-fill').style.width = '0%';
+    document.getElementById('count-num').textContent = `0 / ${TARGET}`;
+    document.getElementById('message').classList.remove('show');
+    document.getElementById('hint').style.display = '';
+    heartMaterial.emissiveIntensity = 0.3;
+    heartMaterial.color.setHex(0xff4170);
+  });
+
+  // Mouse tracking for parallax
+  let mouseX = 0, mouseY = 0;
+  window.addEventListener('mousemove', e => {
+    mouseX = (e.clientX / window.innerWidth - 0.5) * 0.5;
+    mouseY = (e.clientY / window.innerHeight - 0.5) * 0.5;
+  });
+
+  // Resize
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // Animation loop
+  let time = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    time += 0.01;
+
+    // Heart rotation and pulse
+    heart.rotation.y += 0.008;
+    heart.rotation.x = Math.sin(time * 0.5) * 0.1;
+    glow.rotation.copy(heart.rotation);
+
+    // Smooth pulse decay
+    pulseScale += (targetScale - pulseScale) * 0.2;
+    targetScale += (1 - targetScale) * 0.1;
+    const breath = 1 + Math.sin(time * 2) * 0.05;
+    heart.scale.setScalar(pulseScale * breath);
+    glow.scale.setScalar(pulseScale * breath * 1.15);
+
+    // Glow opacity pulse
+    glowMaterial.opacity = 0.15 + Math.sin(time * 2) * 0.05 + (pulseScale - 1) * 0.3;
+
+    // Camera parallax
+    camera.position.x += (mouseX * 2 - camera.position.x) * 0.05;
+    camera.position.y += (-mouseY * 2 - camera.position.y) * 0.05;
+    camera.lookAt(0, 0, 0);
+
+    // Stars
+    stars.rotation.y += 0.0005;
+    stars.rotation.x += 0.0002;
+
+    // Particles update
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      const pos = p.geo.attributes.position.array;
+      for (let j = 0; j < p.velocities.length; j++) {
+        pos[j*3] += p.velocities[j].x;
+        pos[j*3+1] += p.velocities[j].y;
+        pos[j*3+2] += p.velocities[j].z;
+        p.velocities[j].y -= 0.005;
+      }
+      p.geo.attributes.position.needsUpdate = true;
+      p.life -= 0.02;
+      p.mat.opacity = p.life;
+      if (p.life <= 0) {
+        scene.remove(p.mesh);
+        p.geo.dispose();
+        p.mat.dispose();
+        particles.splice(i, 1);
+      }
+    }
+
+    // Mini hearts update
+    for (let i = miniHearts.length - 1; i >= 0; i--) {
+      const h = miniHearts[i];
+      h.mesh.position.x += h.vx;
+      h.mesh.position.y += h.vy;
+      h.mesh.rotation.z += h.rot;
+      h.life -= 0.015;
+      h.mesh.material.opacity = h.life;
+      if (h.life <= 0) {
+        scene.remove(h.mesh);
+        h.mesh.geometry.dispose();
+        h.mesh.material.dispose();
+        miniHearts.splice(i, 1);
+      }
+    }
+
+    renderer.render(scene, camera);
+  }
+  animate();
+})();
+</script>
+</body>
+</html>
